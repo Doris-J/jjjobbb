@@ -21,14 +21,15 @@ def seed():
         db.commit()
         print(f"✅ 导入 {len(questions)} 道八股题")
 
-    # 导入算法题单
-    if db.query(ProblemList).count() == 0:
-        lists_path = Path(__file__).parent / "data" / "problem_lists.json"
-        lists = json.loads(lists_path.read_text(encoding="utf-8"))
-        for lst in lists:
-            db.add(ProblemList(**lst))
-        db.commit()
-        print(f"✅ 导入 {len(lists)} 套题单")
+    # 导入算法题单（每次全量更新）
+    db.query(ProblemList).delete()
+    db.commit()
+    lists_path = Path(__file__).parent / "data" / "problem_lists.json"
+    lists = json.loads(lists_path.read_text(encoding="utf-8"))
+    for lst in lists:
+        db.add(ProblemList(**lst))
+    db.commit()
+    print(f"✅ 导入 {len(lists)} 套题单")
 
     db.close()
     print("🎉 数据库初始化完成")
