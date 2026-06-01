@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from database import engine, SessionLocal, Base
 import models  # 触发所有模型注册
-from models.question import Question
+from models.question import Question, AnswerRecord
 from models.algorithm import ProblemList
 
 
@@ -12,14 +12,16 @@ def seed():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
 
-    # 导入八股题库
-    if db.query(Question).count() == 0:
-        questions_path = Path(__file__).parent / "data" / "questions.json"
-        questions = json.loads(questions_path.read_text(encoding="utf-8"))
-        for q in questions:
-            db.add(Question(**q))
-        db.commit()
-        print(f"✅ 导入 {len(questions)} 道八股题")
+    # 导入八股题库（每次全量更新）
+    db.query(AnswerRecord).delete()
+    db.query(Question).delete()
+    db.commit()
+    questions_path = Path(__file__).parent / "data" / "questions.json"
+    questions = json.loads(questions_path.read_text(encoding="utf-8"))
+    for q in questions:
+        db.add(Question(**q))
+    db.commit()
+    print(f"✅ 导入 {len(questions)} 道八股题")
 
     # 导入算法题单（每次全量更新）
     db.query(ProblemList).delete()
