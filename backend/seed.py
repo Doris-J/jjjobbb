@@ -41,17 +41,22 @@ def seed():
     db.commit()
     print(f"✅ 共导入 {len(all_questions)} 道八股题")
 
-    # 重建系统题单（按 category 分组）
-    # 清空系统题单的关联（UserActiveSet 指向系统题单的也清掉）
-    system_set_ids = [r[0] for r in db.query(QuestionSet.id).filter(QuestionSet.is_system == True).all()]  # noqa: E712
+    # 重建系统题单（按 category+subcategory 分组）
+    # 先保存用户激活记录（set_name → [user_id]），之后按名恢复
+    old_sys_sets = db.query(QuestionSet).filter(QuestionSet.is_system == True).all()  # noqa: E712
+    system_set_ids = [s.id for s in old_sys_sets]
+    active_by_name: dict[str, list[int]] = {}   # {set_name: [user_id, ...]}
     if system_set_ids:
+        for ua in db.query(UserActiveSet).filter(UserActiveSet.set_id.in_(system_set_ids)).all():
+            name = next((s.name for s in old_sys_sets if s.id == ua.set_id), None)
+            if name:
+                active_by_name.setdefault(name, []).append(ua.user_id)
         db.query(QuestionSetItem).filter(QuestionSetItem.set_id.in_(system_set_ids)).delete(synchronize_session=False)
         db.query(UserActiveSet).filter(UserActiveSet.set_id.in_(system_set_ids)).delete(synchronize_session=False)
         db.query(QuestionSet).filter(QuestionSet.id.in_(system_set_ids)).delete(synchronize_session=False)
     db.commit()
 
-    # 按 category + subcategory 分组创建系统题单（每个 .md 文件对应一个题单）
-    from sqlalchemy import distinct, tuple_
+    from sqlalchemy import distinct
     cat_subs = db.query(distinct(Question.category), Question.subcategory).order_by(Question.category, Question.subcategory).all()
     count = 0
     for cat, sub in cat_subs:
@@ -63,22 +68,35 @@ def seed():
         ).order_by(Question.id).all()
         for idx, q in enumerate(questions_in_sub):
             db.add(QuestionSetItem(set_id=qs.id, question_id=q.id, order=idx))
+        # 恢复该题单的用户激活记录
+        for uid in active_by_name.get(sub, []):
+            db.add(UserActiveSet(user_id=uid, set_id=qs.id))
         print(f"  📚 [{cat}] {sub}：{len(questions_in_sub)} 题")
         count += 1
     db.commit()
-    print(f"✅ 创建 {count} 个系统题单")
+    print(f"✅ 创建 {count} 个系统题单（已恢复用户激活记录）")
 
-    # 导入算法题单（每次全量更新）
-    from models.algorithm import UserProblemList
-    db.query(UserProblemList).delete()
-    db.query(ProblemList).delete()
-    db.commit()
+    # 导入算法题单（upsert by name，保留用户已选记录）
     lists_path = data_dir / "problem_lists.json"
     lists = json.loads(lists_path.read_text(encoding="utf-8"))
+    new_names = {lst["name"] for lst in lists}
+    existing = {pl.name: pl for pl in db.query(ProblemList).all()}
     for lst in lists:
-        db.add(ProblemList(**lst))
+        if lst["name"] in existing:
+            pl = existing[lst["name"]]
+            pl.source = lst["source"]
+            pl.total_count = lst["total_count"]
+            pl.problems = lst["problems"]
+        else:
+            db.add(ProblemList(**lst))
+    # 删除 JSON 中已不存在的题单（先删关联）
+    from models.algorithm import UserProblemList
+    for name, pl in existing.items():
+        if name not in new_names:
+            db.query(UserProblemList).filter(UserProblemList.list_id == pl.id).delete()
+            db.delete(pl)
     db.commit()
-    print(f"✅ 导入 {len(lists)} 套算法题单")
+    print(f"✅ 同步 {len(lists)} 套算法题单")
 
     db.close()
     print("🎉 数据库初始化完成")
