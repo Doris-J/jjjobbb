@@ -3,6 +3,22 @@ import qs from "qs";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// ── 简单 TTL 内存缓存 ─────────────────────────────────────────────────────────
+const _cache = new Map<string, { data: unknown; expires: number }>();
+
+function cached<T>(key: string, fetcher: () => Promise<T>, ttl = 30_000): Promise<T> {
+  const hit = _cache.get(key);
+  if (hit && hit.expires > Date.now()) return Promise.resolve(hit.data as T);
+  return fetcher().then((data) => {
+    _cache.set(key, { data, expires: Date.now() + ttl });
+    return data;
+  });
+}
+
+function bust(...keys: string[]) {
+  keys.forEach((k) => _cache.delete(k));
+}
+
 export const api = axios.create({
   baseURL: API_BASE,
   paramsSerializer: { serialize: (params) => qs.stringify(params, { arrayFormat: "repeat" }) },
@@ -31,8 +47,9 @@ export const authApi = {
     api.post("/api/auth/register", data).then((r) => r.data),
   login: (data: { email: string; password: string }) =>
     api.post("/api/auth/login", data).then((r) => r.data),
-  me: () => api.get("/api/auth/me").then((r) => r.data),
-  updateProfile: (data: object) => api.put("/api/auth/me", data).then((r) => r.data),
+  me: () => cached("auth:me", () => api.get("/api/auth/me").then((r) => r.data), 5 * 60_000),
+  updateProfile: (data: object) =>
+    api.put("/api/auth/me", data).then((r) => { bust("auth:me"); return r.data; }),
 };
 
 // Projects
@@ -73,13 +90,17 @@ export const questionsApi = {
 
 // Algorithm
 export const algorithmApi = {
-  getLists: () => api.get("/api/algorithm/lists").then((r) => r.data),
+  getLists: () => cached("algo:lists", () => api.get("/api/algorithm/lists").then((r) => r.data), 60_000),
   selectList: (listId: number) =>
-    api.post("/api/algorithm/lists/select", null, { params: { list_id: listId } }).then((r) => r.data),
+    api.post("/api/algorithm/lists/select", null, { params: { list_id: listId } }).then((r) => {
+      bust("algo:lists", "algo:daily");
+      return r.data;
+    }),
   getProgress: () => api.get("/api/algorithm/lists/progress").then((r) => r.data),
-  daily: () => api.get("/api/algorithm/daily").then((r) => r.data),
-  record: (data: object) => api.post("/api/algorithm/record", data).then((r) => r.data),
-  weakness: () => api.get("/api/algorithm/weakness").then((r) => r.data),
+  daily: () => cached("algo:daily", () => api.get("/api/algorithm/daily").then((r) => r.data), 5 * 60_000),
+  record: (data: object) =>
+    api.post("/api/algorithm/record", data).then((r) => { bust("algo:daily"); return r.data; }),
+  weakness: () => cached("algo:weakness", () => api.get("/api/algorithm/weakness").then((r) => r.data), 60_000),
 };
 
 // Admin
@@ -95,15 +116,20 @@ export const adminApi = {
 
 // Question Sets
 export const questionSetsApi = {
-  list: () => api.get("/api/question-sets").then((r) => r.data),
-  active: () => api.get("/api/question-sets/active").then((r) => r.data),
+  list: () => cached("qsets:list", () => api.get("/api/question-sets").then((r) => r.data), 60_000),
+  active: () => cached("qsets:active", () => api.get("/api/question-sets/active").then((r) => r.data), 60_000),
   select: (set_id: number) =>
-    api.post("/api/question-sets/select", null, { params: { set_id } }).then((r) => r.data),
+    api.post("/api/question-sets/select", null, { params: { set_id } }).then((r) => {
+      bust("qsets:list", "qsets:active");
+      return r.data;
+    }),
   create: (data: { name: string; description?: string }) =>
-    api.post("/api/question-sets", data).then((r) => r.data),
+    api.post("/api/question-sets", data).then((r) => { bust("qsets:list"); return r.data; }),
   get: (id: number) => api.get(`/api/question-sets/${id}`).then((r) => r.data),
-  update: (id: number, data: object) => api.put(`/api/question-sets/${id}`, data).then((r) => r.data),
-  delete: (id: number) => api.delete(`/api/question-sets/${id}`).then((r) => r.data),
+  update: (id: number, data: object) =>
+    api.put(`/api/question-sets/${id}`, data).then((r) => { bust("qsets:list"); return r.data; }),
+  delete: (id: number) =>
+    api.delete(`/api/question-sets/${id}`).then((r) => { bust("qsets:list", "qsets:active"); return r.data; }),
   addItem: (setId: number, question_id: number) =>
     api.post(`/api/question-sets/${setId}/items`, { question_id }).then((r) => r.data),
   removeItem: (setId: number, questionId: number) =>
@@ -134,20 +160,23 @@ export const questionSetsApi = {
 export const planApi = {
   today: (params?: { algo_count?: number; questions_count?: number }) =>
     api.get("/api/plan/today", { params }).then((r) => r.data),
-  items: () => api.get("/api/plan/items").then((r) => r.data),
-  create: (data: object) => api.post("/api/plan/items", data).then((r) => r.data),
-  update: (id: number, data: object) => api.put(`/api/plan/items/${id}`, data).then((r) => r.data),
-  delete: (id: number) => api.delete(`/api/plan/items/${id}`).then((r) => r.data),
+  items: () => cached("plan:items", () => api.get("/api/plan/items").then((r) => r.data), 30_000),
+  create: (data: object) =>
+    api.post("/api/plan/items", data).then((r) => { bust("plan:items"); return r.data; }),
+  update: (id: number, data: object) =>
+    api.put(`/api/plan/items/${id}`, data).then((r) => { bust("plan:items"); return r.data; }),
+  delete: (id: number) =>
+    api.delete(`/api/plan/items/${id}`).then((r) => { bust("plan:items"); return r.data; }),
   reorder: (items: { id: number; order: number }[]) =>
-    api.post("/api/plan/items/reorder", items).then((r) => r.data),
+    api.post("/api/plan/items/reorder", items).then((r) => { bust("plan:items"); return r.data; }),
   uploadResume: (file: File) => {
     const form = new FormData();
     form.append("file", file);
-    return api.post("/api/plan/resume", form).then((r) => r.data);
+    return api.post("/api/plan/resume", form).then((r) => { bust("plan:items"); return r.data; });
   },
 };
 
 // Dashboard
 export const dashboardApi = {
-  get: () => api.get("/api/dashboard").then((r) => r.data),
+  get: () => cached("dashboard", () => api.get("/api/dashboard").then((r) => r.data), 60_000),
 };
