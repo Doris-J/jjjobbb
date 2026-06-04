@@ -23,23 +23,33 @@ with engine.connect() as _conn:
 
 # 迁移 user_active_sets：将 UNIQUE(user_id) 改为 UNIQUE(user_id, set_id)
 _uas_constraints = sa_inspect(engine).get_unique_constraints("user_active_sets")
-if any(c["column_names"] == ["user_id"] for c in _uas_constraints):
+_old_uas = [c for c in _uas_constraints if c["column_names"] == ["user_id"]]
+if _old_uas:
     with engine.connect() as _conn:
-        _conn.execute(text("""
-            CREATE TABLE user_active_sets_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                set_id INTEGER NOT NULL REFERENCES question_sets(id),
-                selected_at DATETIME DEFAULT (CURRENT_TIMESTAMP),
-                UNIQUE (user_id, set_id)
-            )
-        """))
-        _conn.execute(text(
-            "INSERT OR IGNORE INTO user_active_sets_new (id, user_id, set_id, selected_at) "
-            "SELECT id, user_id, set_id, selected_at FROM user_active_sets"
-        ))
-        _conn.execute(text("DROP TABLE user_active_sets"))
-        _conn.execute(text("ALTER TABLE user_active_sets_new RENAME TO user_active_sets"))
+        if engine.dialect.name == "postgresql":
+            # PostgreSQL: 直接 DROP 旧约束，ADD 新约束
+            _old_name = _old_uas[0]["name"]
+            _conn.execute(text(f'ALTER TABLE user_active_sets DROP CONSTRAINT "{_old_name}"'))
+            _conn.execute(text(
+                "ALTER TABLE user_active_sets ADD CONSTRAINT uq_user_active_set UNIQUE (user_id, set_id)"
+            ))
+        else:
+            # SQLite: 重建表
+            _conn.execute(text("""
+                CREATE TABLE user_active_sets_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    set_id INTEGER NOT NULL REFERENCES question_sets(id),
+                    selected_at DATETIME DEFAULT (CURRENT_TIMESTAMP),
+                    UNIQUE (user_id, set_id)
+                )
+            """))
+            _conn.execute(text(
+                "INSERT OR IGNORE INTO user_active_sets_new (id, user_id, set_id, selected_at) "
+                "SELECT id, user_id, set_id, selected_at FROM user_active_sets"
+            ))
+            _conn.execute(text("DROP TABLE user_active_sets"))
+            _conn.execute(text("ALTER TABLE user_active_sets_new RENAME TO user_active_sets"))
         _conn.commit()
 
 from routers import auth, projects, questions, algorithm, plan, dashboard, admin, question_sets

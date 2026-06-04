@@ -12,6 +12,16 @@ from md_parser import load_all_md_questions
 def seed():
     # 建表
     Base.metadata.create_all(bind=engine)
+
+    # 迁移：questions 表新增 user_id 列（兼容已有数据库）
+    from sqlalchemy import text, inspect as sa_inspect
+    _qcols = [c["name"] for c in sa_inspect(engine).get_columns("questions")]
+    if "user_id" not in _qcols:
+        with engine.connect() as _conn:
+            _conn.execute(text("ALTER TABLE questions ADD COLUMN user_id INTEGER REFERENCES users(id)"))
+            _conn.commit()
+        print("✅ 迁移：questions.user_id 列已添加")
+
     db = SessionLocal()
 
     # 导入八股题库（每次全量更新，只清除系统题目，保留用户自建题目）
