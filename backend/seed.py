@@ -69,6 +69,8 @@ def seed():
     print(f"✅ 创建 {count} 个系统题单")
 
     # 导入算法题单（每次全量更新）
+    from models.algorithm import UserProblemList
+    db.query(UserProblemList).delete()
     db.query(ProblemList).delete()
     db.commit()
     lists_path = data_dir / "problem_lists.json"
