@@ -98,25 +98,60 @@ def list_sets(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """返回系统题单 + 当前用户自建题单"""
-    system_sets = db.query(QuestionSet).filter(QuestionSet.is_system == True).all()  # noqa: E712
-    user_sets = (
+    """返回系统题单 + 当前用户自建题单（批量查询，避免 N+1）"""
+    all_sets = (
         db.query(QuestionSet)
-        .filter(QuestionSet.is_system == False, QuestionSet.user_id == current_user.id)  # noqa: E712
+        .filter(
+            (QuestionSet.is_system == True) |  # noqa: E712
+            ((QuestionSet.is_system == False) & (QuestionSet.user_id == current_user.id))  # noqa: E712
+        )
         .all()
     )
-    active = db.query(UserActiveSet).filter(UserActiveSet.user_id == current_user.id).first()
-    active_set_id = active.set_id if active else None
+    set_ids = [qs.id for qs in all_sets]
+    if not set_ids:
+        return []
 
+    # 批量获取所有题单的题目 ID 列表
+    all_items = db.query(QuestionSetItem.set_id, QuestionSetItem.question_id)\
+        .filter(QuestionSetItem.set_id.in_(set_ids)).all()
+    items_by_set: dict[int, list[int]] = {}
+    for sid, qid in all_items:
+        items_by_set.setdefault(sid, []).append(qid)
+
+    # 批量获取用户掌握度（只取 mastered）
+    all_q_ids = [qid for qids in items_by_set.values() for qid in qids]
+    mastered_ids: set[int] = set()
+    if all_q_ids:
+        mastered_ids = {
+            r.question_id for r in
+            db.query(QuestionMastery.question_id)
+            .filter(
+                QuestionMastery.user_id == current_user.id,
+                QuestionMastery.question_id.in_(all_q_ids),
+                QuestionMastery.mastery == "mastered",
+            ).all()
+        }
+
+    # 批量获取激活状态
     active_ids = {
         r.set_id for r in
-        db.query(UserActiveSet).filter(UserActiveSet.user_id == current_user.id).all()
+        db.query(UserActiveSet.set_id)
+        .filter(UserActiveSet.user_id == current_user.id).all()
     }
+
     result = []
-    for qs in system_sets + user_sets:
-        out = _set_out(qs, db, current_user.id)
-        out["is_active"] = qs.id in active_ids
-        result.append(out)
+    for qs in all_sets:
+        q_ids = items_by_set.get(qs.id, [])
+        result.append({
+            "id": qs.id,
+            "name": qs.name,
+            "description": qs.description,
+            "is_system": qs.is_system,
+            "user_id": qs.user_id,
+            "total_count": len(q_ids),
+            "mastered_count": sum(1 for qid in q_ids if qid in mastered_ids),
+            "is_active": qs.id in active_ids,
+        })
     return result
 
 

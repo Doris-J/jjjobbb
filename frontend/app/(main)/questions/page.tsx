@@ -113,6 +113,7 @@ export default function QuestionsPage() {
   const [view, setView] = useState<View>("list");
   const [sets, setSets] = useState<QuestionSet[]>([]);
   const [activeSetIds, setActiveSetIds] = useState<number[]>([]);
+  const [setsLoading, setSetsLoading] = useState(true);
 
   // ── Create set ──
   const [showNewSet, setShowNewSet] = useState(false);
@@ -161,11 +162,13 @@ export default function QuestionsPage() {
   // ── Load sets ──────────────────────────────────────────────────────────
 
   const loadSets = useCallback(async () => {
+    setSetsLoading(true);
     try {
       const data = await questionSetsApi.list();
       setSets(data);
       setActiveSetIds(data.filter((s: QuestionSet) => s.is_active).map((s: QuestionSet) => s.id));
     } catch { toast.error("加载题单失败"); }
+    finally { setSetsLoading(false); }
   }, []);
 
   useEffect(() => { loadSets(); }, [loadSets]);
@@ -818,6 +821,42 @@ export default function QuestionsPage() {
   // ══════════════════════════════════════════════════════════════════════
   // View: List (default — all sets with checkbox selection)
   // ══════════════════════════════════════════════════════════════════════
+
+  if (setsLoading) {
+    return (
+      <div className="p-8 max-w-4xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">📖 八股文</h1>
+          <p className="text-gray-400 text-sm mt-1">加载题单中...</p>
+        </div>
+        <Card>
+          <CardHeader className="pb-2"><div className="h-5 w-24 bg-gray-200 rounded animate-pulse" /></CardHeader>
+          <CardContent>
+            <div className="grid gap-2 md:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-lg border p-3 space-y-2 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-1.5 bg-gray-100 rounded" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><div className="h-5 w-24 bg-gray-200 rounded animate-pulse" /></CardHeader>
+          <CardContent>
+            <div className="grid gap-2 md:grid-cols-2">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="rounded-lg border p-3 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const systemSets = sets.filter((s) => s.is_system);
   const userSets = sets.filter((s) => !s.is_system);
