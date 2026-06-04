@@ -12,7 +12,7 @@ from sqlalchemy import text, inspect as sa_inspect
 with engine.connect() as _conn:
     _cols = [c["name"] for c in sa_inspect(engine).get_columns("users")]
     if "is_admin" not in _cols:
-        _conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"))
+        _conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
         _conn.commit()
 
 with engine.connect() as _conn:
