@@ -20,12 +20,13 @@ const NAV_ITEMS = [
   { href: "/questions", label: "📖 八股文" },
   { href: "/algorithm", label: "🧩 算法追踪" },
   { href: "/plan", label: "📅 学习计划" },
+  { href: "/profile", label: "👤 个人信息" },
 ];
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<{ username?: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ username?: string; email: string; is_admin?: boolean } | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -69,6 +70,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               </Link>
             );
           })}
+          {user?.is_admin && (
+            <Link
+              href="/admin"
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                pathname === "/admin" || pathname.startsWith("/admin/")
+                  ? "bg-blue-50 text-blue-700 font-medium"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              ⚙️ 题库管理
+            </Link>
+          )}
         </nav>
         {/* 用户信息 */}
         {user && (

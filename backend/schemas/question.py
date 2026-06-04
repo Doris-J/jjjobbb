@@ -27,3 +27,7 @@ class AnswerFeedback(BaseModel):
     missing_points: List[str]
     reference_answer: str
     next_follow_up_id: Optional[int] = None
+
+
+class MasterySubmit(BaseModel):
+    mastery: str  # mastered / fuzzy / unknown

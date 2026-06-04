@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Date, DateTime, JSON, Boolean
 from sqlalchemy.sql import func
 from database import Base
 
@@ -15,5 +15,6 @@ class User(Base):
     target_companies = Column(JSON, nullable=True)    # ["字节", "阿里", ...]
     interview_date = Column(Date, nullable=True)
     level = Column(String, nullable=True)             # 入门/中级/高级
+    is_admin = Column(Boolean, default=False, nullable=False, server_default="0")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

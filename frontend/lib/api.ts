@@ -1,9 +1,11 @@
 import axios from "axios";
+import qs from "qs";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export const api = axios.create({
   baseURL: API_BASE,
+  paramsSerializer: { serialize: (params) => qs.stringify(params, { arrayFormat: "repeat" }) },
 });
 
 api.interceptors.request.use((config) => {
@@ -61,6 +63,12 @@ export const questionsApi = {
   followUp: (questionId: number, answer: string) =>
     api.post("/api/questions/follow-up", null, { params: { question_id: questionId, user_answer: answer } }).then((r) => r.data),
   mistakes: () => api.get("/api/questions/mistakes/list").then((r) => r.data),
+  getMastery: (params: { category?: string; subcategory?: string; set_id?: number; set_ids?: number[] }) =>
+    api.get("/api/questions/mastery", { params }).then((r) => r.data),
+  setMastery: (id: number, mastery: string) =>
+    api.post(`/api/questions/${id}/mastery`, { mastery }).then((r) => r.data),
+  resetMastery: (id: number) =>
+    api.delete(`/api/questions/${id}/mastery`).then((r) => r.data),
 };
 
 // Algorithm
@@ -74,9 +82,69 @@ export const algorithmApi = {
   weakness: () => api.get("/api/algorithm/weakness").then((r) => r.data),
 };
 
+// Admin
+export const adminApi = {
+  files: () => api.get("/api/admin/files").then((r) => r.data),
+  getFile: (category: string, filename: string) =>
+    api.get(`/api/admin/files/${encodeURIComponent(category)}/${encodeURIComponent(filename)}`).then((r) => r.data),
+  saveFile: (category: string, filename: string, content: string) =>
+    api.put(`/api/admin/files/${encodeURIComponent(category)}/${encodeURIComponent(filename)}`, { content }).then((r) => r.data),
+  makeAdmin: (email: string) =>
+    api.post("/api/admin/make-admin", { email }).then((r) => r.data),
+};
+
+// Question Sets
+export const questionSetsApi = {
+  list: () => api.get("/api/question-sets").then((r) => r.data),
+  active: () => api.get("/api/question-sets/active").then((r) => r.data),
+  select: (set_id: number) =>
+    api.post("/api/question-sets/select", null, { params: { set_id } }).then((r) => r.data),
+  create: (data: { name: string; description?: string }) =>
+    api.post("/api/question-sets", data).then((r) => r.data),
+  get: (id: number) => api.get(`/api/question-sets/${id}`).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/api/question-sets/${id}`, data).then((r) => r.data),
+  delete: (id: number) => api.delete(`/api/question-sets/${id}`).then((r) => r.data),
+  addItem: (setId: number, question_id: number) =>
+    api.post(`/api/question-sets/${setId}/items`, { question_id }).then((r) => r.data),
+  removeItem: (setId: number, questionId: number) =>
+    api.delete(`/api/question-sets/${setId}/items/${questionId}`).then((r) => r.data),
+  // Admin
+  adminCreate: (data: object) => api.post("/api/question-sets/admin/sets", data).then((r) => r.data),
+  adminUpdate: (id: number, data: object) =>
+    api.put(`/api/question-sets/admin/sets/${id}`, data).then((r) => r.data),
+  adminDelete: (id: number) => api.delete(`/api/question-sets/admin/sets/${id}`).then((r) => r.data),
+  adminAddItem: (setId: number, question_id: number) =>
+    api.post(`/api/question-sets/admin/sets/${setId}/items`, { question_id }).then((r) => r.data),
+  adminRemoveItem: (setId: number, questionId: number) =>
+    api.delete(`/api/question-sets/admin/sets/${setId}/items/${questionId}`).then((r) => r.data),
+  exportMd: (setId: number) =>
+    api.get(`/api/question-sets/${setId}/export-md`).then((r) => r.data),
+  importMd: (setId: number, content: string) =>
+    api.post(`/api/question-sets/${setId}/import-md`, { content }).then((r) => r.data),
+  uploadMd: (setId: number, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.post(`/api/question-sets/${setId}/upload-md`, fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((r) => r.data);
+  },
+};
+
 // Plan
 export const planApi = {
-  today: () => api.get("/api/plan/today").then((r) => r.data),
+  today: (params?: { algo_count?: number; questions_count?: number }) =>
+    api.get("/api/plan/today", { params }).then((r) => r.data),
+  items: () => api.get("/api/plan/items").then((r) => r.data),
+  create: (data: object) => api.post("/api/plan/items", data).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/api/plan/items/${id}`, data).then((r) => r.data),
+  delete: (id: number) => api.delete(`/api/plan/items/${id}`).then((r) => r.data),
+  reorder: (items: { id: number; order: number }[]) =>
+    api.post("/api/plan/items/reorder", items).then((r) => r.data),
+  uploadResume: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/api/plan/resume", form).then((r) => r.data);
+  },
 };
 
 // Dashboard

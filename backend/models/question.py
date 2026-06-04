@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, JSON, Float
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, JSON, Float, UniqueConstraint
 from sqlalchemy.sql import func
 from database import Base
 
@@ -16,6 +16,7 @@ class Question(Base):
     options = Column(JSON, nullable=True)          # 选择题选项
     correct_option = Column(String, nullable=True) # 正确选项 A/B/C/D
     follow_up_ids = Column(JSON, nullable=True)    # 追问题 id 列表
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # NULL=系统题；非空=用户自建题
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -42,3 +43,15 @@ class MistakeBook(Base):
     next_review_date = Column(DateTime, nullable=True)
     review_count = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
+
+
+class QuestionMastery(Base):
+    __tablename__ = "question_mastery"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    question_id = Column(Integer, ForeignKey("questions.id"), nullable=False)
+    mastery = Column(String, nullable=False)   # mastered / fuzzy / unknown
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (UniqueConstraint("user_id", "question_id", name="uq_user_question_mastery"),)

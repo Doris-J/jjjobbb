@@ -32,6 +32,7 @@ class UserOut(BaseModel):
     target_companies: Optional[List[str]]
     interview_date: Optional[date]
     level: Optional[str]
+    is_admin: bool = False
 
     model_config = {"from_attributes": True}
 

@@ -139,4 +139,15 @@ class AIService:
         }
 
 
+    def generate_plan_items_from_resume(self, resume_text: str) -> list:
+        """根据简历文本生成学习计划条目（mock）"""
+        return [
+            {"title": "Java 并发与线程池", "description": "简历中提到多线程场景，需强化 AQS / Executor 原理", "item_type": "custom"},
+            {"title": "MySQL 索引优化", "description": "涉及大数据量查询，需掌握 EXPLAIN 和索引设计", "item_type": "custom"},
+            {"title": "Redis 缓存设计", "description": "缓存穿透/击穿/雪崩三大问题", "item_type": "custom"},
+            {"title": "JVM 调优", "description": "GC 原理与参数调优实践", "item_type": "custom"},
+            {"title": "系统设计：高可用架构", "description": "结合简历项目梳理限流/熔断/降级方案", "item_type": "custom"},
+        ]
+
+
 ai_service = AIService()

@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User
-from models.question import Question, AnswerRecord, MistakeBook
-from schemas.question import QuestionOut, AnswerSubmit, AnswerFeedback
+from models.question import Question, AnswerRecord, MistakeBook, QuestionMastery
+from models.question_set import QuestionSetItem
+from schemas.question import QuestionOut, AnswerSubmit, AnswerFeedback, MasterySubmit
 from services.auth_service import get_current_user
 from services.ai_service import ai_service
 
@@ -18,12 +19,36 @@ def list_questions(
     subcategory: Optional[str] = Query(None),
     type: Optional[str] = Query(None),
     difficulty: Optional[str] = Query(None),
-    limit: int = Query(20, le=100),
+    set_id: Optional[int] = Query(None),
+    set_ids: Optional[List[int]] = Query(None),
+    reveal_answer: bool = Query(False),
+    limit: int = Query(20, le=500),
     offset: int = Query(0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     q = db.query(Question)
+    if set_ids:
+        # 多题单：合并所有题单的题目，保持各题单内部顺序，去重
+        seen: set[int] = set()
+        ordered_ids: list[int] = []
+        for sid in set_ids:
+            for (qid,) in db.query(QuestionSetItem.question_id)\
+                    .filter(QuestionSetItem.set_id == sid)\
+                    .order_by(QuestionSetItem.order).all():
+                if qid not in seen:
+                    seen.add(qid)
+                    ordered_ids.append(qid)
+        q = q.filter(Question.id.in_(ordered_ids))
+    elif set_id is not None:
+        item_ids = [
+            row[0] for row in
+            db.query(QuestionSetItem.question_id)
+            .filter(QuestionSetItem.set_id == set_id)
+            .order_by(QuestionSetItem.order)
+            .all()
+        ]
+        q = q.filter(Question.id.in_(item_ids))
     if category:
         q = q.filter(Question.category == category)
     if subcategory:
@@ -33,11 +58,10 @@ def list_questions(
     if difficulty:
         q = q.filter(Question.difficulty == difficulty)
     questions = q.offset(offset).limit(limit).all()
-    # 简答题不返回答案
     result = []
     for question in questions:
         item = QuestionOut.model_validate(question)
-        if type != "choice":
+        if not reveal_answer and type != "choice":
             item.answer = None
             item.correct_option = None
         result.append(item)
@@ -53,6 +77,48 @@ def get_categories(db: Session = Depends(get_db), current_user: User = Depends(g
         subcats = db.query(distinct(Question.subcategory)).filter(Question.category == cat).all()
         result[cat] = [s[0] for s in subcats]
     return result
+
+
+@router.get("/mastery")
+def get_mastery(
+    category: Optional[str] = Query(None),
+    subcategory: Optional[str] = Query(None),
+    set_id: Optional[int] = Query(None),
+    set_ids: Optional[List[int]] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """返回当前用户的掌握度 map: {question_id: mastery}。支持按 category+subcategory、set_id 或 set_ids 过滤。"""
+    if set_ids:
+        question_ids = list({
+            row[0] for row in
+            db.query(QuestionSetItem.question_id)
+            .filter(QuestionSetItem.set_id.in_(set_ids))
+            .all()
+        })
+    elif set_id is not None:
+        question_ids = [
+            row[0] for row in
+            db.query(QuestionSetItem.question_id)
+            .filter(QuestionSetItem.set_id == set_id)
+            .all()
+        ]
+    elif category and subcategory:
+        question_ids = [
+            row[0] for row in
+            db.query(Question.id)
+            .filter(Question.category == category, Question.subcategory == subcategory)
+            .all()
+        ]
+    else:
+        return {}
+    if not question_ids:
+        return {}
+    records = db.query(QuestionMastery).filter(
+        QuestionMastery.user_id == current_user.id,
+        QuestionMastery.question_id.in_(question_ids),
+    ).all()
+    return {str(r.question_id): r.mastery for r in records}
 
 
 @router.get("/{question_id}", response_model=QuestionOut)
@@ -134,6 +200,47 @@ def submit_answer(
 
     db.commit()
     return feedback
+
+
+@router.delete("/{question_id}/mastery")
+def reset_mastery(
+    question_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """清除用户对某道题的掌握程度记录（恢复灰色状态）"""
+    db.query(QuestionMastery).filter(
+        QuestionMastery.user_id == current_user.id,
+        QuestionMastery.question_id == question_id,
+    ).delete()
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/{question_id}/mastery")
+def set_mastery(
+    question_id: int,
+    data: MasterySubmit,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """记录或更新用户对某道题的掌握程度"""
+    if data.mastery not in ("mastered", "fuzzy", "unknown"):
+        raise HTTPException(status_code=400, detail="mastery 只能是 mastered/fuzzy/unknown")
+    existing = db.query(QuestionMastery).filter(
+        QuestionMastery.user_id == current_user.id,
+        QuestionMastery.question_id == question_id,
+    ).first()
+    if existing:
+        existing.mastery = data.mastery
+    else:
+        db.add(QuestionMastery(
+            user_id=current_user.id,
+            question_id=question_id,
+            mastery=data.mastery,
+        ))
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/follow-up")
