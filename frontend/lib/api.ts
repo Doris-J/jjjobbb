@@ -180,3 +180,15 @@ export const planApi = {
 export const dashboardApi = {
   get: () => cached("dashboard", () => api.get("/api/dashboard").then((r) => r.data), 60_000),
 };
+
+// Notes
+export const notesApi = {
+  tree: () => cached("notes:tree", () => api.get("/api/notes").then((r) => r.data), 30_000),
+  get: (id: number) => api.get(`/api/notes/${id}`).then((r) => r.data),
+  create: (data: { title?: string; parent_id?: number; content?: string }) =>
+    api.post("/api/notes", data).then((r) => { bust("notes:tree"); return r.data; }),
+  update: (id: number, data: { title?: string; content?: string; order?: number }) =>
+    api.put(`/api/notes/${id}`, data).then((r) => { bust("notes:tree"); return r.data; }),
+  delete: (id: number) =>
+    api.delete(`/api/notes/${id}`).then((r) => { bust("notes:tree"); return r.data; }),
+};

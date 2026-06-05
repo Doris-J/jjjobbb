@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { href: "/questions", label: "📖 八股文" },
   { href: "/algorithm", label: "🧩 算法追踪" },
   { href: "/plan", label: "📅 学习计划" },
+  { href: "/notes", label: "📝 学习笔记" },
   { href: "/profile", label: "👤 个人信息" },
 ];
 

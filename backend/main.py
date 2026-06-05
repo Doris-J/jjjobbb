@@ -52,7 +52,7 @@ if _old_uas:
             _conn.execute(text("ALTER TABLE user_active_sets_new RENAME TO user_active_sets"))
         _conn.commit()
 
-from routers import auth, projects, questions, algorithm, plan, dashboard, admin, question_sets
+from routers import auth, projects, questions, algorithm, plan, dashboard, admin, question_sets, notes
 
 app = FastAPI(title="AI 面试备战助手 API", version="1.0.0")
 
@@ -76,6 +76,7 @@ app.include_router(plan.router)
 app.include_router(dashboard.router)
 app.include_router(admin.router)
 app.include_router(question_sets.router)
+app.include_router(notes.router)
 
 
 @app.get("/")
