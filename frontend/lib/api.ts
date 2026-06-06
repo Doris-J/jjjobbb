@@ -191,4 +191,6 @@ export const notesApi = {
     api.put(`/api/notes/${id}`, data).then((r) => { bust("notes:tree"); return r.data; }),
   delete: (id: number) =>
     api.delete(`/api/notes/${id}`).then((r) => { bust("notes:tree"); return r.data; }),
+  move: (id: number, data: { parent_id: number | null; order: number }) =>
+    api.post(`/api/notes/${id}/move`, data).then((r) => { bust("notes:tree"); return r.data; }),
 };

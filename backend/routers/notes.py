@@ -24,6 +24,11 @@ class NoteUpdate(BaseModel):
     order: Optional[int] = None
 
 
+class NoteMove(BaseModel):
+    parent_id: Optional[int] = None
+    order: int = 0
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _build_tree(nodes: list[UserNote]) -> list[dict]:
@@ -53,6 +58,17 @@ def _build_tree(nodes: list[UserNote]) -> list[dict]:
     for root in roots:
         sort_children(root)
     return roots
+
+
+def _is_descendant(ancestor_id: int, target_id: int, db: Session) -> bool:
+    """检查 target_id 是否是 ancestor_id 的子孙节点（防止循环引用）"""
+    if target_id == ancestor_id:
+        return True
+    children = db.query(UserNote.id).filter(UserNote.parent_id == ancestor_id).all()
+    for (child_id,) in children:
+        if _is_descendant(child_id, target_id, db):
+            return True
+    return False
 
 
 def _delete_recursive(note_id: int, db: Session):
@@ -176,5 +192,58 @@ def delete_note(
     if not note:
         raise HTTPException(status_code=404, detail="笔记不存在")
     _delete_recursive(note_id, db)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/{note_id}/move")
+def move_note(
+    note_id: int,
+    data: NoteMove,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """移动笔记到新位置（改变 parent_id 和 order）"""
+    note = db.query(UserNote).filter(
+        UserNote.id == note_id,
+        UserNote.user_id == current_user.id,
+    ).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+
+    # 验证新父节点
+    if data.parent_id is not None:
+        parent = db.query(UserNote).filter(
+            UserNote.id == data.parent_id,
+            UserNote.user_id == current_user.id,
+        ).first()
+        if not parent:
+            raise HTTPException(status_code=404, detail="目标父页面不存在")
+        # 防止循环引用：不能把笔记移入自己的子孙节点
+        if _is_descendant(note_id, data.parent_id, db):
+            raise HTTPException(status_code=400, detail="不能将页面移入其子页面中")
+
+    # 调整原位置同级的 order
+    old_siblings = db.query(UserNote).filter(
+        UserNote.user_id == current_user.id,
+        UserNote.parent_id == note.parent_id,
+        UserNote.id != note_id,
+        UserNote.order > note.order,
+    ).all()
+    for s in old_siblings:
+        s.order -= 1
+
+    # 调整新位置同级的 order 腾出空间
+    new_siblings = db.query(UserNote).filter(
+        UserNote.user_id == current_user.id,
+        UserNote.parent_id == data.parent_id,
+        UserNote.id != note_id,
+        UserNote.order >= data.order,
+    ).all()
+    for s in new_siblings:
+        s.order += 1
+
+    note.parent_id = data.parent_id
+    note.order = data.order
     db.commit()
     return {"ok": True}

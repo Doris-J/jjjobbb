@@ -19,6 +19,13 @@ interface NoteDetail {
   updated_at: string;
 }
 
+type DropPosition = "before" | "after" | "into";
+
+interface DropInfo {
+  targetId: number;
+  position: DropPosition;
+}
+
 // ── 树节点组件 ─────────────────────────────────────────────────────────────────
 
 interface TreeItemProps {
@@ -26,24 +33,46 @@ interface TreeItemProps {
   depth: number;
   selectedId: number | null;
   expanded: Set<number>;
+  dragId: number | null;
+  dropInfo: DropInfo | null;
   onSelect: (id: number) => void;
   onToggleExpand: (id: number) => void;
   onAddChild: (parentId: number) => void;
   onDelete: (id: number, title: string) => void;
+  onDragStart: (id: number) => void;
+  onDragOver: (e: React.DragEvent, id: number) => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
 }
 
-function NoteTreeItem({ node, depth, selectedId, expanded, onSelect, onToggleExpand, onAddChild, onDelete }: TreeItemProps) {
+function NoteTreeItem({
+  node, depth, selectedId, expanded, dragId, dropInfo,
+  onSelect, onToggleExpand, onAddChild, onDelete,
+  onDragStart, onDragOver, onDrop, onDragEnd,
+}: TreeItemProps) {
   const isSelected = selectedId === node.id;
   const isExpanded = expanded.has(node.id);
   const hasChildren = node.children.length > 0;
+  const isDragging = dragId === node.id;
+  const drop = dropInfo?.targetId === node.id ? dropInfo.position : null;
 
   return (
     <div>
       <div
+        draggable
+        onDragStart={() => onDragStart(node.id)}
+        onDragOver={(e) => onDragOver(e, node.id)}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
         style={{ paddingLeft: depth * 14 + 4 }}
-        className={`flex items-center gap-0.5 group py-0.5 pr-1 rounded-md cursor-pointer select-none ${
-          isSelected ? "bg-blue-50 text-blue-700" : "hover:bg-gray-100 text-gray-700"
-        }`}
+        className={[
+          "flex items-center gap-0.5 group py-0.5 pr-1 rounded-md cursor-pointer select-none",
+          isDragging ? "opacity-40" : "",
+          drop === "into" ? "bg-blue-100 ring-1 ring-blue-400" :
+            isSelected ? "bg-blue-50 text-blue-700" : "hover:bg-gray-100 text-gray-700",
+          drop === "before" ? "border-t-2 border-blue-500" : "",
+          drop === "after" ? "border-b-2 border-blue-500" : "",
+        ].join(" ")}
       >
         {/* 展开/折叠按钮 */}
         <button
@@ -52,6 +81,8 @@ function NoteTreeItem({ node, depth, selectedId, expanded, onSelect, onToggleExp
         >
           {hasChildren ? (isExpanded ? "▼" : "▶") : ""}
         </button>
+        {/* 拖拽手柄 */}
+        <span className="opacity-0 group-hover:opacity-100 text-gray-300 cursor-grab text-xs shrink-0 select-none">⠿</span>
         {/* 标题 */}
         <span
           className="flex-1 text-sm truncate py-1"
@@ -79,14 +110,35 @@ function NoteTreeItem({ node, depth, selectedId, expanded, onSelect, onToggleExp
           depth={depth + 1}
           selectedId={selectedId}
           expanded={expanded}
+          dragId={dragId}
+          dropInfo={dropInfo}
           onSelect={onSelect}
           onToggleExpand={onToggleExpand}
           onAddChild={onAddChild}
           onDelete={onDelete}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          onDragEnd={onDragEnd}
         />
       ))}
     </div>
   );
+}
+
+// ── 树查找辅助 ────────────────────────────────────────────────────────────────
+
+function findNodeInfo(
+  nodes: NoteNode[],
+  id: number,
+  parentId: number | null,
+): { node: NoteNode; parentId: number | null } | null {
+  for (const n of nodes) {
+    if (n.id === id) return { node: n, parentId };
+    const found = findNodeInfo(n.children, id, n.id);
+    if (found) return found;
+  }
+  return null;
 }
 
 // ── 主页面 ────────────────────────────────────────────────────────────────────
@@ -104,9 +156,17 @@ export default function NotesPage() {
   const dirtyRef = useRef(false);
   const noteRef = useRef<NoteDetail | null>(null);
 
+  // 拖拽状态
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dropInfo, setDropInfo] = useState<DropInfo | null>(null);
+  const dragIdRef = useRef<number | null>(null);
+  const dropInfoRef = useRef<DropInfo | null>(null);
+
   // 同步 dirty/note 到 ref（避免 Ctrl+S effect 闭包过期）
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
   useEffect(() => { noteRef.current = note; }, [note]);
+  useEffect(() => { dragIdRef.current = dragId; }, [dragId]);
+  useEffect(() => { dropInfoRef.current = dropInfo; }, [dropInfo]);
 
   // 加载树
   const loadTree = useCallback(async (silent = false) => {
@@ -182,7 +242,7 @@ export default function NotesPage() {
     try {
       const created = await notesApi.create({ title: "未命名页面" });
       await loadTree(true);
-      handleSelect(created.id);
+      await handleSelect(created.id);
     } catch {
       toast.error("创建失败");
     }
@@ -194,7 +254,7 @@ export default function NotesPage() {
       const created = await notesApi.create({ title: "未命名页面", parent_id: parentId });
       setExpanded((prev) => new Set([...prev, parentId]));
       await loadTree(true);
-      handleSelect(created.id);
+      await handleSelect(created.id);
     } catch {
       toast.error("创建子页面失败");
     }
@@ -218,6 +278,75 @@ export default function NotesPage() {
     if (dirtyRef.current) await handleSave(true);
   }
 
+  // ── 拖拽处理 ──────────────────────────────────────────────────────────────
+
+  function handleDragStart(id: number) {
+    setDragId(id);
+  }
+
+  function handleDragOver(e: React.DragEvent, targetId: number) {
+    e.preventDefault();
+    const currentDragId = dragIdRef.current;
+    if (currentDragId === null || currentDragId === targetId) return;
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const ratio = (e.clientY - rect.top) / rect.height;
+
+    let position: DropPosition;
+    if (ratio < 0.25) position = "before";
+    else if (ratio > 0.75) position = "after";
+    else position = "into";
+
+    const info = dropInfoRef.current;
+    if (info?.targetId !== targetId || info?.position !== position) {
+      setDropInfo({ targetId, position });
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const id = dragIdRef.current;
+    const info = dropInfoRef.current;
+    if (id === null || info === null) return;
+    handleMove(id, info.targetId, info.position);
+    setDragId(null);
+    setDropInfo(null);
+  }
+
+  function handleDragEnd() {
+    setDragId(null);
+    setDropInfo(null);
+  }
+
+  async function handleMove(draggedId: number, targetId: number, position: DropPosition) {
+    const targetInfo = findNodeInfo(tree, targetId, null);
+    if (!targetInfo) return;
+
+    let newParentId: number | null;
+    let newOrder: number;
+
+    if (position === "into") {
+      newParentId = targetId;
+      newOrder = targetInfo.node.children.length;
+    } else if (position === "before") {
+      newParentId = targetInfo.parentId;
+      newOrder = targetInfo.node.order;
+    } else {
+      newParentId = targetInfo.parentId;
+      newOrder = targetInfo.node.order + 1;
+    }
+
+    try {
+      await notesApi.move(draggedId, { parent_id: newParentId, order: newOrder });
+      await loadTree(true);
+      if (position === "into") {
+        setExpanded((prev) => new Set([...prev, targetId]));
+      }
+    } catch {
+      toast.error("移动失败");
+    }
+  }
+
   return (
     <div className="flex h-full">
       {/* ── 左侧树 ── */}
@@ -226,7 +355,10 @@ export default function NotesPage() {
           <h2 className="font-semibold text-sm text-gray-700">学习笔记</h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-1.5">
+        <div
+          className="flex-1 overflow-y-auto p-1.5"
+          onDragOver={(e) => e.preventDefault()}
+        >
           {treeLoading ? (
             <div className="px-3 py-4 space-y-2">
               {[1, 2, 3].map((i) => (
@@ -243,10 +375,16 @@ export default function NotesPage() {
                 depth={0}
                 selectedId={selectedId}
                 expanded={expanded}
+                dragId={dragId}
+                dropInfo={dropInfo}
                 onSelect={handleSelect}
                 onToggleExpand={handleToggleExpand}
                 onAddChild={handleAddChild}
                 onDelete={handleDelete}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
               />
             ))
           )}
@@ -268,7 +406,7 @@ export default function NotesPage() {
           <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
               <p className="text-5xl mb-4">📝</p>
-              <p className="text-sm">选择左侧笔记开始阅读，或点击"+ 新建页面"</p>
+              <p className="text-sm">选择左侧笔记开始阅读，或点击&quot;+ 新建页面&quot;</p>
             </div>
           </div>
         ) : contentLoading ? (
