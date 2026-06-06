@@ -4,7 +4,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 
 interface Props {
@@ -50,8 +50,6 @@ async function copyImageToClipboard(src: string) {
 }
 
 export default function TipTapEditor({ content, onChange }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -114,15 +112,6 @@ export default function TipTapEditor({ content, onChange }: Props) {
     }
   }, [content, editor]);
 
-  function handleInsertImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !editor) return;
-    e.target.value = "";
-    compressImage(file).then((dataUrl) => {
-      editor.chain().focus().setImage({ src: dataUrl }).run();
-    }).catch(() => toast.error("图片压缩失败"));
-  }
-
   function handleClick(e: React.MouseEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;
     if (target.tagName === "IMG") {
@@ -131,21 +120,8 @@ export default function TipTapEditor({ content, onChange }: Props) {
   }
 
   return (
-    <div>
-      <div className="mb-3 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded px-2 py-1 border border-gray-200 transition-colors"
-        >
-          🖼 插入图片
-        </button>
-        <span className="text-xs text-gray-300">支持粘贴 / 拖拽 · 点击图片可复制到剪贴板</span>
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleInsertImage} />
-      </div>
-      <div onClick={handleClick}>
-        <EditorContent editor={editor} />
-      </div>
+    <div onClick={handleClick}>
+      <EditorContent editor={editor} />
     </div>
   );
 }
