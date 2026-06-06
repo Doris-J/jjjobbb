@@ -192,12 +192,13 @@ export default function NotesPage() {
       await notesApi.update(n.id, { title: n.title, content: n.content });
       setDirty(false);
       if (!silent) toast.success("已保存");
+      loadTree(true);
     } catch {
       toast.error("保存失败");
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [loadTree]);
 
   // Ctrl+S
   useEffect(() => {
