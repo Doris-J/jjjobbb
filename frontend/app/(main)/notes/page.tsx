@@ -351,8 +351,15 @@ export default function NotesPage() {
     <div className="flex h-full">
       {/* ── 左侧树 ── */}
       <aside className="w-56 border-r bg-white flex flex-col shrink-0">
-        <div className="p-3 border-b">
+        <div className="p-3 border-b flex items-center justify-between">
           <h2 className="font-semibold text-sm text-gray-700">学习笔记</h2>
+          <button
+            onClick={handleAddRoot}
+            className="text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded px-1.5 py-0.5 transition-colors"
+            title="新建页面"
+          >
+            + 新建
+          </button>
         </div>
 
         <div
@@ -390,14 +397,6 @@ export default function NotesPage() {
           )}
         </div>
 
-        <div className="p-2 border-t">
-          <button
-            onClick={handleAddRoot}
-            className="w-full text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md px-2 py-1.5 text-left transition-colors"
-          >
-            + 新建页面
-          </button>
-        </div>
       </aside>
 
       {/* ── 右侧编辑区 ── */}
@@ -427,25 +426,6 @@ export default function NotesPage() {
                 }}
                 onBlur={handleTitleBlur}
               />
-            </div>
-
-            {/* 工具栏 */}
-            <div className="px-10 py-2 flex items-center gap-2 border-b">
-              <div className="flex-1" />
-              {dirty && <span className="text-xs text-orange-400 font-medium">• 未保存</span>}
-              <button
-                onClick={() => handleAddChild(note.id)}
-                className="text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-md transition-colors"
-              >
-                + 子页面
-              </button>
-              <button
-                onClick={() => handleSave()}
-                disabled={saving || !dirty}
-                className="text-sm bg-blue-600 text-white px-4 py-1 rounded-md disabled:opacity-40 hover:bg-blue-700 transition-colors"
-              >
-                {saving ? "保存中..." : "保存"}
-              </button>
             </div>
 
             {/* 内容区：TipTap WYSIWYG 编辑器 */}
