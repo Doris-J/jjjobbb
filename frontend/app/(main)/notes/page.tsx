@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import Markdown from "react-markdown";
 import { notesApi } from "@/lib/api";
+import TipTapEditor from "@/components/TipTapEditor";
 
 interface NoteNode {
   id: number;
@@ -95,8 +95,8 @@ export default function NotesPage() {
   const [tree, setTree] = useState<NoteNode[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [note, setNote] = useState<NoteDetail | null>(null);
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [dirty, setDirty] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [treeLoading, setTreeLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
@@ -124,14 +124,14 @@ export default function NotesPage() {
   useEffect(() => { loadTree(); }, [loadTree]);
 
   // 保存（用 ref 避免闭包问题）
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (silent = false) => {
     const n = noteRef.current;
     if (!n || !dirtyRef.current) return;
     setSaving(true);
     try {
       await notesApi.update(n.id, { title: n.title, content: n.content });
       setDirty(false);
-      toast.success("已保存");
+      if (!silent) toast.success("已保存");
     } catch {
       toast.error("保存失败");
     } finally {
@@ -153,7 +153,8 @@ export default function NotesPage() {
 
   // 选中笔记
   async function handleSelect(id: number) {
-    if (dirtyRef.current && !window.confirm("有未保存的内容，确认切换？")) return;
+    if (dirtyRef.current) await handleSave(true);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSelectedId(id);
     setDirty(false);
     setContentLoading(true);
@@ -214,7 +215,7 @@ export default function NotesPage() {
 
   // 标题失焦自动保存
   async function handleTitleBlur() {
-    if (dirtyRef.current) await handleSave();
+    if (dirtyRef.current) await handleSave(true);
   }
 
   return (
@@ -291,28 +292,9 @@ export default function NotesPage() {
             </div>
 
             {/* 工具栏 */}
-            <div className="border-b px-10 py-2 flex items-center gap-2">
-              <button
-                onClick={() => setMode("edit")}
-                className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                  mode === "edit" ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-500 hover:bg-gray-100"
-                }`}
-              >
-                ✏️ 编辑
-              </button>
-              <button
-                onClick={() => setMode("preview")}
-                className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                  mode === "preview" ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-500 hover:bg-gray-100"
-                }`}
-              >
-                👁 预览
-              </button>
-
+            <div className="px-10 py-2 flex items-center gap-2 border-b">
               <div className="flex-1" />
-
               {dirty && <span className="text-xs text-orange-400 font-medium">• 未保存</span>}
-
               <button
                 onClick={() => handleAddChild(note.id)}
                 className="text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-md transition-colors"
@@ -320,7 +302,7 @@ export default function NotesPage() {
                 + 子页面
               </button>
               <button
-                onClick={handleSave}
+                onClick={() => handleSave()}
                 disabled={saving || !dirty}
                 className="text-sm bg-blue-600 text-white px-4 py-1 rounded-md disabled:opacity-40 hover:bg-blue-700 transition-colors"
               >
@@ -328,27 +310,19 @@ export default function NotesPage() {
               </button>
             </div>
 
-            {/* 内容区 */}
+            {/* 内容区：TipTap WYSIWYG 编辑器 */}
             <div className="flex-1 overflow-y-auto px-10 py-6">
-              {mode === "edit" ? (
-                <textarea
-                  className="w-full h-full min-h-[400px] font-mono text-sm outline-none resize-none text-gray-800 leading-relaxed bg-transparent"
-                  placeholder={"用 Markdown 写点什么...\n\n## 示例\n\n- 支持列表\n- **粗体** 和 *斜体*\n- `代码` 块\n\n```java\nSystem.out.println(\"Hello\");\n```"}
-                  value={note.content}
-                  onChange={(e) => {
-                    setNote((n) => n ? { ...n, content: e.target.value } : n);
-                    setDirty(true);
-                  }}
-                />
-              ) : (
-                <div className="md-body text-gray-800">
-                  {note.content ? (
-                    <Markdown>{note.content}</Markdown>
-                  ) : (
-                    <p className="text-gray-400 text-sm">（暂无内容，切换到编辑模式开始写作）</p>
-                  )}
-                </div>
-              )}
+              <TipTapEditor
+                key={note.id}
+                content={note.content}
+                onChange={(markdown) => {
+                  setNote((n) => n ? { ...n, content: markdown } : n);
+                  setDirty(true);
+                  // 自动保存：1 秒无操作后触发
+                  if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                  saveTimerRef.current = setTimeout(() => handleSave(true), 1000);
+                }}
+              />
             </div>
           </>
         )}
