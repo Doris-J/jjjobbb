@@ -36,7 +36,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-2xl">登录</CardTitle>
-          <CardDescription>AI 面试备战助手</CardDescription>
+          <CardDescription>Welcome to Chrysalis</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

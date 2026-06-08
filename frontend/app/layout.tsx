@@ -9,8 +9,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "AI 面试备战助手",
-  description: "算法 + 八股 + 项目，三位一体面试准备",
+  title: "Chrysalis",
+  description: "Personal knowledge and growth platform",
 };
 
 export default function RootLayout({

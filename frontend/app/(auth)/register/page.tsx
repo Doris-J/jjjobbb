@@ -36,7 +36,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-2xl">注册</CardTitle>
-          <CardDescription>开始你的面试备战之旅</CardDescription>
+          <CardDescription>Start your transformation journey</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

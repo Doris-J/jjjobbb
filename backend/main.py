@@ -54,7 +54,7 @@ if _old_uas:
 
 from routers import auth, projects, questions, algorithm, plan, dashboard, admin, question_sets, notes
 
-app = FastAPI(title="AI 面试备战助手 API", version="1.0.0")
+app = FastAPI(title="Chrysalis API", version="1.0.0")
 
 # FRONTEND_URL 支持多个来源，逗号分隔，本地默认 localhost:3000
 _origins_env = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -81,4 +81,4 @@ app.include_router(notes.router)
 
 @app.get("/")
 def root():
-    return {"message": "AI 面试备战助手 API", "docs": "/docs"}
+    return {"message": "Chrysalis API", "docs": "/docs"}

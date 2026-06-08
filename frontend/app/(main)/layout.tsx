@@ -51,8 +51,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       {/* 侧边栏 */}
       <aside className="w-56 bg-white border-r flex flex-col">
         <div className="p-4 border-b">
-          <h1 className="font-bold text-lg text-gray-800">AI 面试助手</h1>
-          <p className="text-xs text-gray-400 mt-0.5">备战，从今天开始</p>
+          <h1 className="font-bold text-lg text-gray-800">Chrysalis</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Transform, evolve, succeed</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {NAV_ITEMS.map((item) => {
