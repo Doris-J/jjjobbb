@@ -1,15 +1,13 @@
 "use client";
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
-import Placeholder from "@tiptap/extension-placeholder";
-import { Markdown } from "tiptap-markdown";
-import { useEffect } from "react";
+import { useCreateBlockNote } from "@blocknote/react";
+import { BlockNoteView } from "@blocknote/mantine";
+import "@blocknote/mantine/style.css";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 interface Props {
   content: string;
-  onChange: (markdown: string) => void;
+  onChange: (json: string) => void;
 }
 
 const MAX_WIDTH = 1600;
@@ -27,7 +25,10 @@ async function compressImage(file: File): Promise<string> {
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("canvas error")); return; }
+      if (!ctx) {
+        reject(new Error("canvas error"));
+        return;
+      }
       ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
       resolve(canvas.toDataURL("image/jpeg", JPEG_QUALITY));
@@ -37,91 +38,44 @@ async function compressImage(file: File): Promise<string> {
   });
 }
 
-async function copyImageToClipboard(src: string) {
-  try {
-    const res = await fetch(src);
-    const blob = await res.blob();
-    const type = blob.type.startsWith("image/") ? blob.type : "image/png";
-    await navigator.clipboard.write([new ClipboardItem({ [type]: blob })]);
-    toast.success("图片已复制到剪贴板");
-  } catch {
-    toast.error("复制失败，请尝试右键另存为");
-  }
-}
-
 export default function TipTapEditor({ content, onChange }: Props) {
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Image.configure({ allowBase64: true }),
-      Markdown.configure({ transformPastedText: true }),
-      Placeholder.configure({ placeholder: "用 Markdown 写点什么…" }),
-    ],
-    content,
-    editorProps: {
-      attributes: {
-        class: "tiptap-editor outline-none min-h-[400px] text-gray-800",
-      },
-      handlePaste(view, event) {
-        const items = event.clipboardData?.items;
-        if (!items) return false;
-        for (const item of Array.from(items)) {
-          if (item.type.startsWith("image/")) {
-            const file = item.getAsFile();
-            if (!file) continue;
-            compressImage(file).then((dataUrl) => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const node = (view.state.schema.nodes as any).image?.create({ src: dataUrl });
-              if (node) view.dispatch(view.state.tr.replaceSelectionWith(node));
-            }).catch(() => toast.error("图片压缩失败"));
-            return true;
-          }
-        }
-        return false;
-      },
-      handleDrop(view, event) {
-        const files = event.dataTransfer?.files;
-        if (!files?.length) return false;
-        const imgs = Array.from(files).filter((f) => f.type.startsWith("image/"));
-        if (!imgs.length) return false;
-        event.preventDefault();
-        for (const file of imgs) {
-          compressImage(file).then((dataUrl) => {
-            const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const node = (view.state.schema.nodes as any).image?.create({ src: dataUrl });
-            if (node && pos) view.dispatch(view.state.tr.insert(pos.pos, node));
-          }).catch(() => toast.error("图片压缩失败"));
-        }
-        return true;
-      },
-    },
-    onUpdate({ editor }) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onChange((editor.storage as any).markdown.getMarkdown());
+  // 安全解析初始内容（JSON 新格式，旧 Markdown 变空）
+  let initialContent;
+  try {
+    initialContent = content ? JSON.parse(content) : undefined;
+  } catch {
+    initialContent = undefined;
+  }
+
+  const editor = useCreateBlockNote({
+    initialContent,
+    uploadFile: async (file: File) => {
+      try {
+        const dataUrl = await compressImage(file);
+        return dataUrl;
+      } catch {
+        toast.error("图片压缩失败");
+        throw new Error("图片压缩失败");
+      }
     },
   });
 
-  // key={noteId} 已处理切换笔记的场景，此 effect 仅作兜底
   useEffect(() => {
-    if (!editor || editor.isDestroyed) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const current = (editor.storage as any).markdown.getMarkdown();
-    if (current !== content) {
-      editor.commands.setContent(content);
-    }
-  }, [content, editor]);
+    if (!editor) return;
 
-  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
-    const target = e.target as HTMLElement;
-    if (target.tagName === "IMG") {
-      copyImageToClipboard((target as HTMLImageElement).src);
-    }
-  }
+    // BlockNote onChange - 编辑时自动触发
+    const unsubscribe = editor.onEditorContentChange(() => {
+      onChange(JSON.stringify(editor.document));
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [editor, onChange]);
 
   return (
-    <div onClick={handleClick}>
-      <EditorContent editor={editor} />
+    <div className="blocknote-wrapper">
+      <BlockNoteView editor={editor} />
     </div>
   );
 }
