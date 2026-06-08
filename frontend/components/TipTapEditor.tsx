@@ -39,6 +39,8 @@ async function compressImage(file: File): Promise<string> {
 }
 
 export default function TipTapEditor({ content, onChange }: Props) {
+  const onChangeRef = useRef(onChange);
+
   // 安全解析初始内容（JSON 新格式，旧 Markdown 变空）
   let initialContent;
   try {
@@ -60,22 +62,19 @@ export default function TipTapEditor({ content, onChange }: Props) {
     },
   });
 
+  // 保持 onChange 引用最新
   useEffect(() => {
-    if (!editor) return;
-
-    // BlockNote onChange - 编辑时自动触发
-    const unsubscribe = editor.onEditorContentChange(() => {
-      onChange(JSON.stringify(editor.document));
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [editor, onChange]);
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   return (
     <div className="blocknote-wrapper">
-      <BlockNoteView editor={editor} />
+      <BlockNoteView
+        editor={editor}
+        onChange={() => {
+          onChangeRef.current(JSON.stringify(editor.document));
+        }}
+      />
     </div>
   );
 }
