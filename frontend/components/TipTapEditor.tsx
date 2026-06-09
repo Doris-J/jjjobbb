@@ -6,7 +6,7 @@ import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
 import { createCodeBlockSpec } from "@blocknote/core/blocks";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { getHighlighter } from "shiki";
+import { createHighlighter } from "shiki";
 
 interface Props {
   content: string;
@@ -60,7 +60,7 @@ const schema = BlockNoteSchema.create({
         css:        { name: "CSS" },
       },
       createHighlighter: async () =>
-        getHighlighter({
+        createHighlighter({
           langs: ["javascript", "typescript", "java", "kotlin", "python", "shell", "sql", "json", "html", "css"],
           themes: ["github-dark"],
         }),
