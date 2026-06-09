@@ -2,6 +2,8 @@
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import "@blocknote/mantine/style.css";
+import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
+import { createCodeBlockSpec } from "@blocknote/core/blocks";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -38,20 +40,35 @@ async function compressImage(file: File): Promise<string> {
   });
 }
 
+// Schema with code block language selector
+const schema = BlockNoteSchema.create({
+  blockSpecs: {
+    ...defaultBlockSpecs,
+    codeBlock: createCodeBlockSpec({
+      defaultLanguage: "javascript",
+      supportedLanguages: {
+        javascript: { name: "JavaScript", aliases: ["js"] },
+        typescript: { name: "TypeScript", aliases: ["ts"] },
+        java:       { name: "Java" },
+        kotlin:     { name: "Kotlin" },
+        python:     { name: "Python", aliases: ["py"] },
+        shell:      { name: "Shell", aliases: ["bash", "sh"] },
+        sql:        { name: "SQL" },
+        json:       { name: "JSON" },
+        html:       { name: "HTML" },
+        css:        { name: "CSS" },
+      },
+    }),
+  },
+});
+
 /**
  * BlockNote Editor with enhanced features:
  * - Notion-style block editing
  * - Full slash command menu (/, /code, /table, etc.)
  * - Image support with compression
+ * - Code block language selector (JavaScript, Java, Kotlin, Python, Shell, etc.)
  * - All standard block types and formatting
- *
- * Code block languages: JavaScript, TypeScript, Python, Java, Kotlin, Shell, etc.
- * (Supported via Slash menu: /code → select language)
- *
- * Note: Language selector and Mermaid are available through BlockNote's
- * native UI (accessible via / menu). Direct API customization requires
- * BlockNote schema which is SSR-incompatible in Next.js 16 - see
- * docs/BLOCKNOTE.md for advanced customization patterns.
  */
 export default function TipTapEditor({ content, onChange }: Props) {
   const onChangeRef = useRef(onChange);
@@ -64,6 +81,7 @@ export default function TipTapEditor({ content, onChange }: Props) {
   }
 
   const editor = useCreateBlockNote({
+    schema,
     initialContent,
     uploadFile: async (file: File) => {
       try {
