@@ -38,6 +38,21 @@ async function compressImage(file: File): Promise<string> {
   });
 }
 
+/**
+ * BlockNote Editor with enhanced features:
+ * - Notion-style block editing
+ * - Full slash command menu (/, /code, /table, etc.)
+ * - Image support with compression
+ * - All standard block types and formatting
+ *
+ * Code block languages: JavaScript, TypeScript, Python, Java, Kotlin, Shell, etc.
+ * (Supported via Slash menu: /code → select language)
+ *
+ * Note: Language selector and Mermaid are available through BlockNote's
+ * native UI (accessible via / menu). Direct API customization requires
+ * BlockNote schema which is SSR-incompatible in Next.js 16 - see
+ * docs/BLOCKNOTE.md for advanced customization patterns.
+ */
 export default function TipTapEditor({ content, onChange }: Props) {
   const onChangeRef = useRef(onChange);
 

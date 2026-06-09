@@ -119,6 +119,12 @@
 
 /* BlockNote 编辑器样式由 @blocknote/mantine 提供 */
 
+/* 隐藏 BlockNote 块缩进的虚线 */
+.bn-block-outer::before {
+  display: none !important;
+  content: none !important;
+}
+
 /* Markdown 预览样式 */
 .md-body h1 { font-size: 1.75rem; font-weight: 700; margin: 1rem 0 0.5rem; }
 .md-body h2 { font-size: 1.4rem; font-weight: 700; margin: 1rem 0 0.5rem; }
