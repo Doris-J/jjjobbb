@@ -6,6 +6,7 @@ import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
 import { createCodeBlockSpec } from "@blocknote/core/blocks";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { getHighlighter } from "shiki";
 
 interface Props {
   content: string;
@@ -40,7 +41,7 @@ async function compressImage(file: File): Promise<string> {
   });
 }
 
-// Schema with code block language selector
+// Schema with code block language selector and syntax highlighting
 const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
@@ -58,6 +59,11 @@ const schema = BlockNoteSchema.create({
         html:       { name: "HTML" },
         css:        { name: "CSS" },
       },
+      createHighlighter: async () =>
+        getHighlighter({
+          langs: ["javascript", "typescript", "java", "kotlin", "python", "shell", "sql", "json", "html", "css"],
+          themes: ["github-dark"],
+        }),
     }),
   },
 });
