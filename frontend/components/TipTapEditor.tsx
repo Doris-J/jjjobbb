@@ -45,7 +45,7 @@ const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     codeBlock: createCodeBlockSpec({
-      defaultLanguage: "javascript",
+      defaultLanguage: "kotlin",
       supportedLanguages: {
         javascript: { name: "JavaScript", aliases: ["js"] },
         typescript: { name: "TypeScript", aliases: ["ts"] },
