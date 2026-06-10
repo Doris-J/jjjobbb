@@ -28,6 +28,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<{ username?: string; email: string; is_admin?: boolean } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -49,10 +50,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex h-screen bg-gray-50">
       {/* 侧边栏 */}
-      <aside className="w-56 bg-white border-r flex flex-col">
-        <div className="p-4 border-b">
-          <h1 className="font-bold text-lg text-gray-800">Chrysalis</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Transform, evolve, succeed</p>
+      <aside className={`bg-white border-r flex flex-col transition-all duration-300 shrink-0 overflow-hidden ${
+        sidebarOpen ? "w-56" : "w-0"
+      }`}>
+        <div className="p-4 border-b flex items-center justify-between">
+          <div>
+            <h1 className="font-bold text-lg text-gray-800">Chrysalis</h1>
+            <p className="text-xs text-gray-400 mt-0.5">Transform, evolve, succeed</p>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="shrink-0 text-gray-400 hover:text-gray-600"
+            title="折叠导航"
+          >
+            ◀
+          </button>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {NAV_ITEMS.map((item) => {
@@ -110,7 +122,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       </aside>
 
       {/* 主内容 */}
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto relative">
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="fixed top-4 left-4 z-40 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+            title="展开导航"
+          >
+            ▶
+          </button>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

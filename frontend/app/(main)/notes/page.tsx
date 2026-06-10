@@ -153,6 +153,7 @@ export default function NotesPage() {
   const [treeLoading, setTreeLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [treeOpen, setTreeOpen] = useState(true);
   const dirtyRef = useRef(false);
   const noteRef = useRef<NoteDetail | null>(null);
 
@@ -351,16 +352,27 @@ export default function NotesPage() {
   return (
     <div className="flex h-full">
       {/* ── 左侧树 ── */}
-      <aside className="w-56 border-r bg-white flex flex-col shrink-0">
+      <aside className={`border-r bg-white flex flex-col transition-all duration-300 shrink-0 overflow-hidden ${
+        treeOpen ? "w-56" : "w-0"
+      }`}>
         <div className="p-3 border-b flex items-center justify-between">
-          <h2 className="font-semibold text-sm text-gray-700">学习笔记</h2>
-          <button
-            onClick={handleAddRoot}
-            className="text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded px-1.5 py-0.5 transition-colors"
-            title="新建页面"
-          >
-            + 新建
-          </button>
+          <h2 className="font-semibold text-sm text-gray-700 whitespace-nowrap">学习笔记</h2>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={handleAddRoot}
+              className="text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded px-1.5 py-0.5 transition-colors"
+              title="新建页面"
+            >
+              + 新建
+            </button>
+            <button
+              onClick={() => setTreeOpen(!treeOpen)}
+              className="text-xs text-gray-400 hover:text-gray-600"
+              title="折叠树"
+            >
+              ◀
+            </button>
+          </div>
         </div>
 
         <div
@@ -401,7 +413,16 @@ export default function NotesPage() {
       </aside>
 
       {/* ── 右侧编辑区 ── */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-white">
+      <main className="flex-1 flex flex-col overflow-hidden bg-white relative">
+        {!treeOpen && (
+          <button
+            onClick={() => setTreeOpen(true)}
+            className="absolute top-4 left-4 z-30 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+            title="展开树"
+          >
+            ▶
+          </button>
+        )}
         {!note && !contentLoading ? (
           <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
